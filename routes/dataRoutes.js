@@ -4,7 +4,8 @@ const router = express.Router();
 const apiKeyMiddleware = require('../middleware/apiKeyMiddleware');
 const { createData, getData } = require('../controllers/dataController');
 
-router.post('/', apiKeyMiddleware, createData);
-router.get('/', apiKeyMiddleware, getData);
+// dynamic collections
+router.post('/:collection', apiKeyMiddleware, createData);
+router.get('/:collection', apiKeyMiddleware, getData);
 
 module.exports = router;
