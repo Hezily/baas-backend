@@ -11,26 +11,17 @@ const projectRoutes = require('./routes/projectRoutes');
 const app = express();
 
 // ✅ Middleware (ORDER MATTERS)
-app.use(cors());              // 👈 MUST BE HERE
-app.use(express.json());      // 👈 BEFORE routes
+app.use(cors());
+app.use(express.json());
 
-// ✅ Debug logs
-console.log('AuthRoutes loaded:', typeof authRoutes);
-console.log('UserRoutes loaded:', typeof userRoutes);
-console.log('ProjectRoutes loaded:', typeof projectRoutes);
-
-// ✅ DB connection test
-pool.connect()
-  .then(() => console.log('DB connected ✅'))
-  .catch(err => console.error('DB connection error ❌', err));
-
-// ✅ Root route
+// ✅ Health check (IMPORTANT for Railway)
 app.get('/', async (req, res) => {
   try {
     const result = await pool.query('SELECT NOW()');
     res.json({
+      status: "OK ✅",
       message: 'BaaS MVP running 🚀',
-      time: result.rows[0]
+      time: result.rows[0],
     });
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -52,15 +43,15 @@ app.use((req, res) => {
   res.status(404).json({ error: 'Route not found ❌' });
 });
 
-// ❗ Error handler
+// ❗ Global error handler
 app.use((err, req, res, next) => {
-  console.error("ERROR 👉", err);
+  console.error("ERROR 👉", err.stack);
   res.status(500).json({ error: err.message });
 });
 
-// ✅ Start server
+// ✅ Start server (CRITICAL for Railway)
 const PORT = process.env.PORT || 3000;
 
-app.listen(PORT, () => {
-  console.log(`Server running on http://localhost:${PORT} 🚀`);
+app.listen(PORT, '0.0.0.0', () => {
+  console.log(`Server running on port ${PORT} 🚀`);
 });
