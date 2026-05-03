@@ -7,14 +7,15 @@ const cors = require('cors');
 const authRoutes = require('./routes/authRoutes');
 const userRoutes = require('./routes/userRoutes');
 const projectRoutes = require('./routes/projectRoutes');
+const dataRoutes = require('./routes/dataRoutes'); // 🆕 ADD THIS
 
 const app = express();
 
-// ✅ Middleware (ORDER MATTERS)
+// ✅ Middleware
 app.use(cors());
 app.use(express.json());
 
-// ✅ Health check (IMPORTANT for Railway)
+// ✅ Health check
 app.get('/', async (req, res) => {
   try {
     const result = await pool.query('SELECT NOW()');
@@ -37,19 +38,20 @@ app.get('/test', (req, res) => {
 app.use('/api/auth', authRoutes);
 app.use('/api/user', userRoutes);
 app.use('/api/project', projectRoutes);
+app.use('/api/data', dataRoutes); // 🆕 ADD THIS
 
 // ❗ 404 handler
 app.use((req, res) => {
   res.status(404).json({ error: 'Route not found ❌' });
 });
 
-// ❗ Global error handler
+// ❗ Error handler
 app.use((err, req, res, next) => {
   console.error("ERROR 👉", err.stack);
   res.status(500).json({ error: err.message });
 });
 
-// ✅ Start server (CRITICAL for Railway)
+// ✅ Start server
 const PORT = process.env.PORT || 3000;
 
 app.listen(PORT, '0.0.0.0', () => {
