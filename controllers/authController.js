@@ -6,7 +6,7 @@ const crypto = require('crypto');
 const JWT_SECRET = process.env.JWT_SECRET || 'supersecret';
 
 //
-// 🔐 AUTH (REQUIRED)
+// 🔐 AUTH (AUTO ONBOARDING ENABLED)
 //
 
 // ✅ Signup
@@ -16,15 +16,42 @@ exports.signup = async (req, res) => {
   try {
     const hashedPassword = await bcrypt.hash(password, 10);
 
-    const result = await pool.query(
-      'INSERT INTO users (email, password) VALUES ($1, $2) RETURNING id, email, created_at',
+    // 🔹 Create user
+    const userResult = await pool.query(
+      'INSERT INTO users (email, password) VALUES ($1, $2) RETURNING id, email',
       [email, hashedPassword]
     );
 
-    res.json({
-      message: 'User created ✅',
-      user: result.rows[0],
+    const user = userResult.rows[0];
+
+    // 🔥 AUTO CREATE PROJECT
+    const projectResult = await pool.query(
+      'INSERT INTO projects (user_id, name, usage_count) VALUES ($1, $2, 0) RETURNING *',
+      [user.id, 'My First Project']
+    );
+
+    const project = projectResult.rows[0];
+
+    // 🔥 AUTO CREATE API KEY
+    const apiKey = crypto.randomBytes(32).toString('hex');
+
+    const apiKeyResult = await pool.query(
+      'INSERT INTO api_keys (user_id, project_id, api_key) VALUES ($1, $2, $3) RETURNING *',
+      [user.id, project.id, apiKey]
+    );
+
+    // 🔐 Token
+    const token = jwt.sign({ id: user.id }, JWT_SECRET, {
+      expiresIn: '1h',
     });
+
+    res.json({
+      message: 'Signup successful ✅',
+      token,
+      project,
+      apiKey: apiKeyResult.rows[0]
+    });
+
   } catch (err) {
     if (err.code === '23505') {
       return res.status(400).json({ error: 'Email already exists' });
@@ -54,21 +81,61 @@ exports.login = async (req, res) => {
       return res.status(400).json({ error: 'Invalid password' });
     }
 
+    // 🔐 Token
     const token = jwt.sign({ id: user.id }, JWT_SECRET, {
       expiresIn: '1h',
     });
 
+    // 🔥 GET EXISTING PROJECT
+    let projectResult = await pool.query(
+      'SELECT * FROM projects WHERE user_id = $1 LIMIT 1',
+      [user.id]
+    );
+
+    let project = projectResult.rows[0];
+
+    // 🔥 If no project → create one
+    if (!project) {
+      const newProject = await pool.query(
+        'INSERT INTO projects (user_id, name, usage_count) VALUES ($1, $2, 0) RETURNING *',
+        [user.id, 'My First Project']
+      );
+      project = newProject.rows[0];
+    }
+
+    // 🔥 GET OR CREATE API KEY
+    let keyResult = await pool.query(
+      'SELECT * FROM api_keys WHERE user_id = $1 AND project_id = $2 LIMIT 1',
+      [user.id, project.id]
+    );
+
+    let apiKeyData = keyResult.rows[0];
+
+    if (!apiKeyData) {
+      const newKey = crypto.randomBytes(32).toString('hex');
+
+      const createdKey = await pool.query(
+        'INSERT INTO api_keys (user_id, project_id, api_key) VALUES ($1, $2, $3) RETURNING *',
+        [user.id, project.id, newKey]
+      );
+
+      apiKeyData = createdKey.rows[0];
+    }
+
     res.json({
       message: 'Login successful ✅',
       token,
+      project,
+      apiKey: apiKeyData
     });
+
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
 };
 
 //
-// 🔑 API KEY FEATURES (PROJECT BASED)
+// 🔑 API KEY FEATURES (UNCHANGED)
 //
 
 // ➤ Create API key
